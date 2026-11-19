@@ -12,7 +12,7 @@ final class ApplicationFocusTests: XCTestCase {
       [TileWindow(
         id: 1, pid: windowPID, app: "Example", title: "Window", space: space,
         root: true, minimized: false, hidden: false, floating: false, fullscreen: false,
-        hasAX: true, focused: true)]
+        hasAX: true, focused: true, visible: true)]
     } ?? []
     return Snapshot(displays: [], spaces: spaces, windows: windows, reservationIssue: nil)
   }

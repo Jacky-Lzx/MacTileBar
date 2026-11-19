@@ -195,7 +195,7 @@ final class BarController: NSObject, NSApplicationDelegate {
       strips.removeValue(forKey: id)
     }
 
-    let windowsBySpace = Dictionary(grouping: snapshot?.windows.filter(\.listed) ?? [], by: \.space)
+    let windowsBySpace = Dictionary(grouping: snapshot?.listedWindows ?? [], by: \.space)
     let application = applicationFocus?.pid.flatMap { NSRunningApplication(processIdentifier: $0) }
     let applicationName = applicationFocus?.name ?? "Desktop"
     let focusedDisplayID = snapshot?.displays.first { $0.index == applicationFocus?.display }?.id

@@ -50,10 +50,16 @@ struct TileWindow: Decodable, Equatable {
   let fullscreen: Bool
   let hasAX: Bool
   let focused: Bool?
+  let visible: Bool?
 
   var identity: ID { ID(id: id, pid: pid) }
   var name: String { title.isEmpty ? app : "\(app) — \(title)" }
   var listed: Bool { root && !hidden && !fullscreen }
+
+  func isListed(onVisibleSpace: Bool) -> Bool {
+    // Off-Space windows may acquire their AX reference only after switching Spaces.
+    listed && (hasAX || minimized || visible != false || !onVisibleSpace)
+  }
 
   enum CodingKeys: String, CodingKey {
     case id, pid, app, title, space
@@ -64,6 +70,7 @@ struct TileWindow: Decodable, Equatable {
     case fullscreen = "is-native-fullscreen"
     case hasAX = "has-ax-reference"
     case focused = "has-focus"
+    case visible = "is-visible"
   }
 }
 
@@ -80,6 +87,11 @@ struct Snapshot {
   let reservationIssue: String?
 
   var desktops: [Space] { spaces.filter { !$0.fullscreen }.sorted { $0.index < $1.index } }
+
+  var listedWindows: [TileWindow] {
+    let visibleSpaces = Set(spaces.filter(\.visible).map(\.index))
+    return windows.filter { $0.isListed(onVisibleSpace: visibleSpaces.contains($0.space)) }
+  }
 
   func applicationFocus(pid: Int32?, name: String) -> ApplicationFocus? {
     guard let space = spaces.first(where: \.focused) else { return nil }
@@ -214,6 +226,9 @@ final class Yabai {
     let spaces: [Space] = try query("spaces")
     guard let space = spaces.first(where: { $0.index == window.space && !$0.fullscreen }) else {
       throw YabaiError(message: "The window has moved to a different Space.")
+    }
+    guard window.isListed(onVisibleSpace: space.visible) else {
+      throw YabaiError(message: "The target window is no longer available.")
     }
     if !space.visible {
       try command(["space", "--focus", String(space.index)])
