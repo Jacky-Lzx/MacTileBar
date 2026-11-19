@@ -1,0 +1,35 @@
+# MacTileBar
+
+MacTileBar is a Swift/AppKit window control bar. Each display has a bar below the system menu bar showing its Spaces and windows, including empty Spaces. A bright border marks the Space with keyboard focus, while a lighter border marks a Space visible on another display. The bar hides when its display shows a native fullscreen Space.
+
+## Build and run
+
+Requires macOS 26 or later. Building requires Xcode with the macOS 26 SDK or later. The bar uses the system Liquid Glass material.
+
+```sh
+bash scripts/build-app.sh
+open dist/MacTileBar.app
+```
+
+Install in Applications and launch the app. Use the same command to update an existing installation.
+
+```sh
+bash scripts/install-app.sh
+```
+
+The install script uses `dist/MacTileBar.app`, asks any running MacTileBar instance to quit normally, replaces `/Applications/MacTileBar.app`, and launches the new version. After changing the code, run the build script before running the install script.
+
+The app queries a running yabai instance and looks for the executable in Homebrew locations and `PATH`. To debug with a custom executable, set `MACTILEBAR_YABAI` to its absolute path and run the executable inside the app bundle directly. The MacTileBar menu bar item shows connection status, command errors, and bar reservation issues. Its menu also lets you refresh or quit.
+
+“Automatically Reserve Bar Height” is enabled by default and can be disabled in the MacTileBar menu. The app syncs its bar height (currently 27 pt) to yabai's `external_bar` setting, reserving space above tiled windows on all displays. Existing larger top reservations and enabled bottom reservations are preserved. yabai uses the same values for all displays.
+
+When you disable the option or quit normally, the app restores the previous settings if yabai still uses the values written by MacTileBar. If another program changes the setting while MacTileBar is running, automatic synchronization pauses. Turn the option off and on again to resume. Force-quitting may temporarily leave the reserved space in place. The next launch resumes or cleans up the previous reservation.
+
+## Mouse controls
+
+- Click a Space number, name, or empty area of its capsule to switch to that Space.
+- Right-click a capsule to close its Space. Windows in that Space move to other Spaces. At least one desktop Space must remain on each display.
+- Click a window icon to switch to its Space and focus the window. Hover to see its title. Minimized windows appear translucent.
+- Scroll horizontally when the contents exceed the display width. A regular vertical mouse wheel also scrolls the bar horizontally.
+
+When you click a window on another Space, MacTileBar first switches to that Space, then waits for yabai to obtain the window's accessibility reference before focusing it. If the connection is lost, the bar keeps showing the last known state and disables interactions. Interactions resume automatically when the connection is restored.
