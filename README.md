@@ -1,6 +1,6 @@
 # MacTileBar
 
-MacTileBar is a Swift/AppKit window control bar. Each display has a bar below the system menu bar showing its Spaces and windows, including empty Spaces. A bright border marks the Space with keyboard focus, while a lighter border marks a Space visible on another display. The bar hides when its display shows a native fullscreen Space.
+MacTileBar is a Swift/AppKit window control bar. Each display has three sections below the system menu bar. The left section shows the frontmost application's icon and name only on the focused display, the center shows the display's Spaces and windows, including empty Spaces, and the right shows today's date and weekday in English. The focused display is determined by yabai's focused Space. The date follows the system time zone and updates automatically. A bright border marks the Space with keyboard focus, while a lighter border marks a Space visible on another display. The bar hides when its display shows a native fullscreen Space.
 
 ## Build and run
 

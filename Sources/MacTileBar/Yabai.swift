@@ -49,6 +49,7 @@ struct TileWindow: Decodable, Equatable {
   let floating: Bool
   let fullscreen: Bool
   let hasAX: Bool
+  let focused: Bool?
 
   var identity: ID { ID(id: id, pid: pid) }
   var name: String { title.isEmpty ? app : "\(app) — \(title)" }
@@ -62,7 +63,14 @@ struct TileWindow: Decodable, Equatable {
     case floating = "is-floating"
     case fullscreen = "is-native-fullscreen"
     case hasAX = "has-ax-reference"
+    case focused = "has-focus"
   }
+}
+
+struct ApplicationFocus: Equatable {
+  let pid: Int32?
+  let name: String
+  let display: Int
 }
 
 struct Snapshot {
@@ -72,6 +80,15 @@ struct Snapshot {
   let reservationIssue: String?
 
   var desktops: [Space] { spaces.filter { !$0.fullscreen }.sorted { $0.index < $1.index } }
+
+  func applicationFocus(pid: Int32?, name: String) -> ApplicationFocus? {
+    guard let space = spaces.first(where: \.focused) else { return nil }
+    if let window = windows.first(where: { $0.focused == true }) {
+      // Separate yabai queries can straddle a focus change. Wait for a consistent pair.
+      guard window.pid == pid, window.space == space.index else { return nil }
+    }
+    return ApplicationFocus(pid: pid, name: name, display: space.display)
+  }
 }
 
 enum BarAction {

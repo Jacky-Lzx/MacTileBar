@@ -13,14 +13,35 @@ final class BarController: NSObject, NSApplicationDelegate {
     let status: String?
   }
 
+  private final class DisplayBar {
+    let left = BarPanel()
+    let center = BarPanel()
+    let right = BarPanel()
+    var applicationPID: pid_t?
+    var applicationName: String?
+    var dateTitle: String?
+    var leftWidth: CGFloat = 0
+    var rightWidth: CGFloat = 0
+
+    var allPanels: [BarPanel] { [left, center, right] }
+  }
+
+  private let dateFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy/MM/dd EEEE"
+    return formatter
+  }()
   private let backend = Yabai()
   private let worker = DispatchQueue(label: "local.mactilebar.yabai", qos: .userInitiated)
   private var timer: Timer?
   private var statusItem: NSStatusItem?
   private var observers: [NSObjectProtocol] = []
-  private var panels: [UInt32: BarPanel] = [:]
+  private var panels: [UInt32: DisplayBar] = [:]
   private var strips: [UInt32: Strip] = [:]
   private var snapshot: Snapshot?
+  private var applicationFocus: ApplicationFocus?
+  private var focusRevision: UInt = 0
   private var connectionError: String?
   private var actionError: String?
   private var querying = false
@@ -54,10 +75,19 @@ final class BarController: NSObject, NSApplicationDelegate {
       }
       observers.append(observer)
     }
+    observers.append(NSWorkspace.shared.notificationCenter.addObserver(
+      forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.focusRevision &+= 1
+      self?.refresh()
+    })
     NotificationCenter.default.addObserver(
       self, selector: #selector(screenChanged),
       name: NSApplication.didChangeScreenParametersNotification, object: nil)
-    let timer = Timer(timeInterval: 0.75, repeats: true) { [weak self] _ in self?.refresh() }
+    let timer = Timer(timeInterval: 0.75, repeats: true) { [weak self] _ in
+      self?.render()
+      self?.refresh()
+    }
     self.timer = timer
     RunLoop.main.add(timer, forMode: .common)
     render()
@@ -93,13 +123,15 @@ final class BarController: NSObject, NSApplicationDelegate {
     guard !querying, !acting, !terminating else { return }
     querying = true
     let reservation = reservationRequest
+    let application = NSWorkspace.shared.frontmostApplication
+    let revision = focusRevision
     worker.async { [weak self, backend] in
       let result = Result { try backend.snapshot(reserving: reservation) }
       DispatchQueue.main.async { [weak self] in
         guard let self else { return }
         self.querying = false
         guard !self.acting, !self.terminating else { return }
-        self.apply(result)
+        self.apply(result, application: application, revision: revision)
         if reservation != self.reservationRequest { self.refresh() }
       }
     }
@@ -111,6 +143,8 @@ final class BarController: NSObject, NSApplicationDelegate {
     acting = true
     actionError = nil
     let reservation = reservationRequest
+    let application = NSWorkspace.shared.frontmostApplication
+    let revision = focusRevision
     worker.async { [weak self, backend] in
       let operation = Result { try backend.perform(action) }
       let snapshot = Result { try backend.snapshot(reserving: reservation) }
@@ -118,17 +152,25 @@ final class BarController: NSObject, NSApplicationDelegate {
         guard let self, !self.terminating else { return }
         self.acting = false
         if case .failure(let error) = operation { self.actionError = error.localizedDescription }
-        self.apply(snapshot)
+        self.apply(snapshot, application: application, revision: revision)
         if reservation != self.reservationRequest { self.refresh() }
       }
     }
     return true
   }
 
-  private func apply(_ result: Result<Snapshot, Error>) {
+  private func apply(
+    _ result: Result<Snapshot, Error>, application: NSRunningApplication?, revision: UInt
+  ) {
+    guard revision == focusRevision else {
+      refresh()
+      return
+    }
     switch result {
     case .success(let value):
       snapshot = value
+      applicationFocus = value.applicationFocus(
+        pid: application?.processIdentifier, name: application?.localizedName ?? "Desktop")
       connectionError = nil
     case .failure(let error):
       connectionError = error.localizedDescription
@@ -149,21 +191,31 @@ final class BarController: NSObject, NSApplicationDelegate {
     let screens = NSScreen.screens
     let screenIDs = Set(screens.compactMap { displayID($0) })
     for id in Set(panels.keys).subtracting(screenIDs) {
-      panels.removeValue(forKey: id)?.close()
+      panels.removeValue(forKey: id)?.allPanels.forEach { $0.close() }
       strips.removeValue(forKey: id)
     }
 
     let windowsBySpace = Dictionary(grouping: snapshot?.windows.filter(\.listed) ?? [], by: \.space)
+    let application = applicationFocus?.pid.flatMap { NSRunningApplication(processIdentifier: $0) }
+    let applicationName = applicationFocus?.name ?? "Desktop"
+    let focusedDisplayID = snapshot?.displays.first { $0.index == applicationFocus?.display }?.id
+    for (id, bar) in panels where id != focusedDisplayID || connectionError != nil {
+      bar.left.orderOut(nil)
+    }
+    dateFormatter.timeZone = .autoupdatingCurrent
+    let dateTitle = dateFormatter.string(from: Date())
     for screen in screens {
       guard let id = displayID(screen) else { continue }
       let display = snapshot?.displays.first { $0.id == id }
       let spaces = snapshot?.desktops.filter { $0.display == display?.index } ?? []
+      let showsFocusedApplication = connectionError == nil && applicationFocus != nil
+        && applicationFocus?.display == display?.index
       let onFullscreen =
         snapshot?.spaces.contains { $0.display == display?.index && $0.visible && $0.fullscreen }
         == true
 
       if onFullscreen || (spaces.isEmpty && id != CGMainDisplayID()) {
-        panels[id]?.orderOut(nil)
+        panels[id]?.allPanels.forEach { $0.orderOut(nil) }
         continue
       }
 
@@ -182,24 +234,51 @@ final class BarController: NSObject, NSApplicationDelegate {
       }
 
       let strip = Strip(groups: groups, status: status)
-      let panel = panels[id] ?? BarPanel()
-      panels[id] = panel
+      let bar = panels[id] ?? DisplayBar()
+      panels[id] = bar
       if strips[id] != strip {
-        updateStrip(strip, in: panel)
+        updateStrip(strip, in: bar.center)
         strips[id] = strip
       }
+      if showsFocusedApplication
+        && (bar.applicationPID != application?.processIdentifier || bar.applicationName != applicationName)
+      {
+        let capsule = statusCapsule(applicationName, application: application)
+        bar.leftWidth = capsule.frame.width
+        bar.left.contentView = capsuleContainer(capsule)
+        bar.applicationPID = application?.processIdentifier
+        bar.applicationName = applicationName
+      }
+      if bar.dateTitle != dateTitle {
+        let capsule = statusCapsule(dateTitle, textColor: .white)
+        bar.rightWidth = capsule.frame.width
+        bar.right.contentView = capsuleContainer(capsule)
+        bar.dateTitle = dateTitle
+      }
 
-      guard let scroll = panel.contentView as? StripScrollView, let document = scroll.documentView
+      guard let scroll = bar.center.contentView as? StripScrollView, let document = scroll.documentView
       else { continue }
-      let usable = screen.visibleFrame
-      let width = min(document.frame.width, usable.width)
-      let frame = NSRect(
-        x: floor(usable.midX - width / 2), y: usable.maxY - barHeight,
-        width: width, height: barHeight)
-      if panel.frame != frame { panel.setFrame(frame, display: true) }
-      if !panel.isVisible { panel.orderFrontRegardless() }
-      PanelSpaces.reconcile(windowNumber: panel.windowNumber, desktops: spaces)
+      let frames = BarSectionFrames(
+        usable: screen.visibleFrame, leftWidth: showsFocusedApplication ? bar.leftWidth : 0,
+        centerWidth: document.frame.width, rightWidth: bar.rightWidth)
+      for (panel, frame) in zip(bar.allPanels, [frames.left, frames.center, frames.right]) {
+        if panel === bar.left && !showsFocusedApplication {
+          panel.orderOut(nil)
+          continue
+        }
+        if panel.frame != frame { panel.setFrame(frame, display: true) }
+        if !panel.isVisible { panel.orderFrontRegardless() }
+        PanelSpaces.reconcile(windowNumber: panel.windowNumber, desktops: spaces)
+      }
     }
+  }
+
+  private func capsuleContainer(_ capsule: NSView) -> NSView {
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: capsule.frame.width, height: barHeight))
+    capsule.frame.origin.y = (barHeight - capsule.frame.height) / 2
+    capsule.autoresizingMask = [.width]
+    container.addSubview(capsule)
+    return container
   }
 
   private func updateStrip(_ strip: Strip, in panel: BarPanel) {

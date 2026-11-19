@@ -2,6 +2,8 @@ import AppKit
 
 let barHeight: CGFloat = 27
 let capsuleSpacing: CGFloat = 4
+let barEdgePadding: CGFloat = 8
+let barSectionSpacing: CGFloat = 12
 private let capsuleHeight: CGFloat = 25
 private let capsuleBorderWidth: CGFloat = 2
 
@@ -17,6 +19,9 @@ private let windowButtonGap: CGFloat = 2
 
 private let statusFontSize: CGFloat = 11
 private let statusHorizontalPadding: CGFloat = 10
+private let focusedAppMaxTextWidth: CGFloat = 180
+private let focusedAppIconSize: CGFloat = 16
+private let focusedAppIconSpacing: CGFloat = 4
 
 private let floatingIndicatorWidth: CGFloat = 8
 private let floatingIndicatorHeight: CGFloat = 2
@@ -35,6 +40,7 @@ final class BarPanel: NSPanel {
     isOpaque = false
     backgroundColor = .clear
     hasShadow = false
+    animationBehavior = .none
     hidesOnDeactivate = false
     level = .floating
     collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
@@ -50,18 +56,57 @@ func material(behind content: NSView, tint: NSColor? = nil) -> NSGlassEffectView
   return glass
 }
 
-func statusCapsule(_ title: String) -> NSView {
+func statusCapsule(
+  _ title: String, application: NSRunningApplication? = nil, textColor: NSColor? = nil
+) -> NSView {
   let label = NSTextField(labelWithString: title)
   label.font = .systemFont(ofSize: statusFontSize, weight: .medium)
-  label.textColor = .secondaryLabelColor
+  label.textColor = textColor ?? (application == nil ? .secondaryLabelColor : .labelColor)
+  label.lineBreakMode = .byTruncatingTail
   label.sizeToFit()
+  let icon = application?.icon
+  if application != nil { label.frame.size.width = min(label.frame.width, focusedAppMaxTextWidth) }
+  let iconWidth = icon == nil ? 0 : focusedAppIconSize + focusedAppIconSpacing
   label.frame.origin = NSPoint(
-    x: statusHorizontalPadding, y: (capsuleHeight - label.frame.height) / 2)
+    x: statusHorizontalPadding + iconWidth, y: (capsuleHeight - label.frame.height) / 2)
+  label.autoresizingMask = [.width]
   let content = NSView(
     frame: NSRect(
       x: 0, y: 0, width: label.frame.maxX + statusHorizontalPadding, height: capsuleHeight))
   content.addSubview(label)
-  return material(behind: content)
+  if let icon {
+    let image = NSImageView(frame: NSRect(
+      x: statusHorizontalPadding, y: (capsuleHeight - focusedAppIconSize) / 2,
+      width: focusedAppIconSize, height: focusedAppIconSize))
+    image.image = icon
+    image.imageScaling = .scaleProportionallyDown
+    content.addSubview(image)
+  }
+  let capsule = material(behind: content)
+  capsule.toolTip = title
+  capsule.setAccessibilityLabel(title)
+  return capsule
+}
+
+/// Keeps the middle section centered while reserving room for both side sections.
+struct BarSectionFrames {
+  let left: NSRect
+  let center: NSRect
+  let right: NSRect
+
+  init(usable: NSRect, leftWidth: CGFloat, centerWidth: CGFloat, rightWidth: CGFloat) {
+    let margin = min(barEdgePadding, usable.width / 2)
+    let available = max(0, usable.width - 2 * margin)
+    let gap = min(barSectionSpacing, available / 4)
+    let sideLimit = max(0, (available - 2 * gap) / 3)
+    let leftWidth = min(leftWidth, sideLimit)
+    let rightWidth = min(rightWidth, sideLimit)
+    let centerWidth = min(centerWidth, max(0, available - 2 * (max(leftWidth, rightWidth) + gap)))
+    let y = usable.maxY - barHeight
+    left = NSRect(x: usable.minX + margin, y: y, width: leftWidth, height: barHeight)
+    center = NSRect(x: usable.midX - centerWidth / 2, y: y, width: centerWidth, height: barHeight)
+    right = NSRect(x: usable.maxX - margin - rightWidth, y: y, width: rightWidth, height: barHeight)
+  }
 }
 
 final class StripScrollView: NSScrollView {
