@@ -10,9 +10,10 @@ mkdir -p dist
 staging="$(mktemp -d dist/.build-app.XXXXXX)"
 trap 'rm -rf "$staging"' EXIT
 bundle="$staging/MacTileBar.app"
-mkdir -p "$bundle/Contents/MacOS"
+mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 cp scripts/Info.plist "$bundle/Contents/Info.plist"
 install -m 755 "$bin_dir/MacTileBar" "$bundle/Contents/MacOS/MacTileBar"
+install -m 644 .build/checkouts/TOMLDecoder/LICENSE.md "$bundle/Contents/Resources/TOMLDecoder-LICENSE.md"
 codesign --force --sign - "$bundle"
 codesign --verify --strict "$bundle"
 

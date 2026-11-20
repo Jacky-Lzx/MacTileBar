@@ -1,0 +1,42 @@
+# Copy to ~/.config/mactilebar/config.toml, or launch with --config PATH.
+# Omitted settings use these defaults. Choose Reload Configuration after editing.
+# All appearance measurements are in points.
+
+[appearance]
+bar_height = 27
+capsule_height = 25
+capsule_border_width = 2
+capsule_spacing = 4
+bar_edge_padding = 8
+bar_section_spacing = 12
+
+space_font_size = 10
+space_label_max_width = 100
+space_leading_padding = 6
+space_trailing_padding = 6
+space_label_icon_gap = 2
+
+window_button_size = 20
+window_icon_size = 18
+window_button_gap = 2
+
+status_font_size = 11
+status_horizontal_padding = 10
+focused_app_max_text_width = 180
+focused_app_icon_size = 16
+focused_app_icon_spacing = 4
+
+floating_indicator_width = 8
+floating_indicator_height = 2
+floating_indicator_bottom_padding = 0.5
+
+[date]
+# Uses DateFormatter patterns and English weekday/month names.
+format = "yyyy/MM/dd EEEE"
+text_color = "#FFFFFF" # #RRGGBB or #RRGGBBAA
+
+[behavior]
+refresh_interval = 0.75 # Seconds between yabai queries.
+# Omit to use the saved menu preference (initially enabled).
+# When specified, this value is reapplied on startup and configuration reload.
+# reserves_bar_height = true

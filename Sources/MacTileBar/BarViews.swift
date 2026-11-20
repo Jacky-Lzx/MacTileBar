@@ -1,31 +1,10 @@
 import AppKit
 
-let barHeight: CGFloat = 27
-let capsuleSpacing: CGFloat = 4
-let barEdgePadding: CGFloat = 8
-let barSectionSpacing: CGFloat = 12
-private let capsuleHeight: CGFloat = 25
-private let capsuleBorderWidth: CGFloat = 2
-
-private let spaceFontSize: CGFloat = 10
-private let spaceLabelMaxWidth: CGFloat = 100
-private let spaceLeadingPadding: CGFloat = 6
-private let spaceTrailingPadding: CGFloat = 6
-private let spaceLabelIconGap: CGFloat = 2
-
-private let windowButtonSize: CGFloat = 20
-private let windowIconSize: CGFloat = 18
-private let windowButtonGap: CGFloat = 2
-
-private let statusFontSize: CGFloat = 11
-private let statusHorizontalPadding: CGFloat = 10
-private let focusedAppMaxTextWidth: CGFloat = 180
-private let focusedAppIconSize: CGFloat = 16
-private let focusedAppIconSpacing: CGFloat = 4
-
-private let floatingIndicatorWidth: CGFloat = 8
-private let floatingIndicatorHeight: CGFloat = 2
-private let floatingIndicatorBottomPadding: CGFloat = 0.5
+var barAppearance = BarAppearance()
+var barHeight: CGFloat { barAppearance.barHeight }
+var capsuleSpacing: CGFloat { barAppearance.capsuleSpacing }
+var barEdgePadding: CGFloat { barAppearance.barEdgePadding }
+var barSectionSpacing: CGFloat { barAppearance.barSectionSpacing }
 
 final class BarPanel: NSPanel {
   override var canBecomeKey: Bool { false }
@@ -50,7 +29,7 @@ final class BarPanel: NSPanel {
 func material(behind content: NSView, tint: NSColor? = nil) -> NSGlassEffectView {
   content.autoresizingMask = [.width, .height]
   let glass = NSGlassEffectView(frame: content.frame)
-  glass.cornerRadius = capsuleHeight / 2
+  glass.cornerRadius = barAppearance.capsuleHeight / 2
   glass.tintColor = tint
   glass.contentView = content
   return glass
@@ -60,24 +39,24 @@ func statusCapsule(
   _ title: String, application: NSRunningApplication? = nil, textColor: NSColor? = nil
 ) -> NSView {
   let label = NSTextField(labelWithString: title)
-  label.font = .systemFont(ofSize: statusFontSize, weight: .medium)
+  label.font = .systemFont(ofSize: barAppearance.statusFontSize, weight: .medium)
   label.textColor = textColor ?? (application == nil ? .secondaryLabelColor : .labelColor)
   label.lineBreakMode = .byTruncatingTail
   label.sizeToFit()
   let icon = application?.icon
-  if application != nil { label.frame.size.width = min(label.frame.width, focusedAppMaxTextWidth) }
-  let iconWidth = icon == nil ? 0 : focusedAppIconSize + focusedAppIconSpacing
+  if application != nil { label.frame.size.width = min(label.frame.width, barAppearance.focusedAppMaxTextWidth) }
+  let iconWidth = icon == nil ? 0 : barAppearance.focusedAppIconSize + barAppearance.focusedAppIconSpacing
   label.frame.origin = NSPoint(
-    x: statusHorizontalPadding + iconWidth, y: (capsuleHeight - label.frame.height) / 2)
+    x: barAppearance.statusHorizontalPadding + iconWidth, y: (barAppearance.capsuleHeight - label.frame.height) / 2)
   label.autoresizingMask = [.width]
   let content = NSView(
     frame: NSRect(
-      x: 0, y: 0, width: label.frame.maxX + statusHorizontalPadding, height: capsuleHeight))
+      x: 0, y: 0, width: label.frame.maxX + barAppearance.statusHorizontalPadding, height: barAppearance.capsuleHeight))
   content.addSubview(label)
   if let icon {
     let image = NSImageView(frame: NSRect(
-      x: statusHorizontalPadding, y: (capsuleHeight - focusedAppIconSize) / 2,
-      width: focusedAppIconSize, height: focusedAppIconSize))
+      x: barAppearance.statusHorizontalPadding, y: (barAppearance.capsuleHeight - barAppearance.focusedAppIconSize) / 2,
+      width: barAppearance.focusedAppIconSize, height: barAppearance.focusedAppIconSize))
     image.image = icon
     image.imageScaling = .scaleProportionallyDown
     content.addSubview(image)
@@ -137,23 +116,23 @@ final class SpaceCapsule: NSView {
 
     let label = NSTextField(labelWithString: space.title)
     label.font = .monospacedDigitSystemFont(
-      ofSize: spaceFontSize, weight: space.focused ? .semibold : .medium)
+      ofSize: barAppearance.spaceFontSize, weight: space.focused ? .semibold : .medium)
     label.lineBreakMode = .byTruncatingTail
     label.sizeToFit()
-    label.frame.size.width = min(spaceLabelMaxWidth, label.frame.width)
+    label.frame.size.width = min(barAppearance.spaceLabelMaxWidth, label.frame.width)
     label.frame.origin = NSPoint(
-      x: spaceLeadingPadding, y: (capsuleHeight - label.frame.height) / 2)
+      x: barAppearance.spaceLeadingPadding, y: (barAppearance.capsuleHeight - label.frame.height) / 2)
 
-    var x = label.frame.maxX + spaceLabelIconGap
+    var x = label.frame.maxX + barAppearance.spaceLabelIconGap
     for chip in chips {
-      chip.frame.origin = NSPoint(x: x, y: (capsuleHeight - chip.frame.height) / 2)
-      x = chip.frame.maxX + windowButtonGap
+      chip.frame.origin = NSPoint(x: x, y: (barAppearance.capsuleHeight - chip.frame.height) / 2)
+      x = chip.frame.maxX + barAppearance.windowButtonGap
     }
     let contentWidth = chips.last?.frame.maxX ?? label.frame.maxX
     // Empty Spaces keep symmetric padding around their label.
-    let trailingPadding = chips.isEmpty ? spaceLeadingPadding : spaceTrailingPadding
+    let trailingPadding = chips.isEmpty ? barAppearance.spaceLeadingPadding : barAppearance.spaceTrailingPadding
     let frame = NSRect(
-      x: 0, y: 0, width: contentWidth + trailingPadding, height: capsuleHeight)
+      x: 0, y: 0, width: contentWidth + trailingPadding, height: barAppearance.capsuleHeight)
     super.init(frame: frame)
     let content = NSView(frame: frame)
     content.addSubview(label)
@@ -166,7 +145,7 @@ final class SpaceCapsule: NSView {
     wantsLayer = true
     layer?.cornerRadius = frame.height / 2
     let borderAlpha: CGFloat = space.focused ? 0.8 : space.visible ? 0.4 : 0
-    layer?.borderWidth = borderAlpha > 0 ? capsuleBorderWidth : 0
+    layer?.borderWidth = borderAlpha > 0 ? barAppearance.capsuleBorderWidth : 0
     layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(borderAlpha).cgColor
     let status = space.focused ? "Focused" : space.visible ? "Visible" : "Not visible"
     let accessibilityLabel = "Space \(space.title) · \(status)"
@@ -176,7 +155,7 @@ final class SpaceCapsule: NSView {
     setAccessibilityLabel(accessibilityLabel)
     let spaceButton = SpaceButton(
       frame: NSRect(
-        x: 0, y: 0, width: label.frame.maxX + spaceLabelIconGap, height: capsuleHeight))
+        x: 0, y: 0, width: label.frame.maxX + barAppearance.spaceLabelIconGap, height: barAppearance.capsuleHeight))
     spaceButton.capsule = self
     spaceButton.toolTip = toolTip
     spaceButton.setAccessibilityLabel("Switch to Space \(space.title)")
@@ -229,10 +208,10 @@ private final class WindowChip: NSView {
     icon =
       NSRunningApplication(processIdentifier: model.pid)?.icon
       ?? NSImage(systemSymbolName: "macwindow", accessibilityDescription: nil)
-      ?? NSImage(size: NSSize(width: windowIconSize, height: windowIconSize))
+      ?? NSImage(size: NSSize(width: barAppearance.windowIconSize, height: barAppearance.windowIconSize))
     super.init(
       frame: NSRect(
-        x: 0, y: 0, width: windowButtonSize, height: min(windowButtonSize, capsuleHeight)))
+        x: 0, y: 0, width: barAppearance.windowButtonSize, height: min(barAppearance.windowButtonSize, barAppearance.capsuleHeight)))
     var name = model.name
     if model.minimized { name += " · Minimized" }
     if model.floating { name += " · Floating" }
@@ -245,7 +224,7 @@ private final class WindowChip: NSView {
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   override func draw(_ dirtyRect: NSRect) {
-    let iconSize = min(windowIconSize, bounds.width, bounds.height)
+    let iconSize = min(barAppearance.windowIconSize, bounds.width, bounds.height)
     let iconRect = NSRect(
       x: bounds.midX - iconSize / 2, y: bounds.midY - iconSize / 2,
       width: iconSize, height: iconSize)
@@ -256,9 +235,9 @@ private final class WindowChip: NSView {
       NSColor.secondaryLabelColor.setFill()
       NSBezierPath(
         roundedRect: NSRect(
-          x: bounds.midX - floatingIndicatorWidth / 2, y: floatingIndicatorBottomPadding,
-          width: floatingIndicatorWidth, height: floatingIndicatorHeight),
-        xRadius: floatingIndicatorHeight / 2, yRadius: floatingIndicatorHeight / 2
+          x: bounds.midX - barAppearance.floatingIndicatorWidth / 2, y: barAppearance.floatingIndicatorBottomPadding,
+          width: barAppearance.floatingIndicatorWidth, height: barAppearance.floatingIndicatorHeight),
+        xRadius: barAppearance.floatingIndicatorHeight / 2, yRadius: barAppearance.floatingIndicatorHeight / 2
       ).fill()
     }
   }

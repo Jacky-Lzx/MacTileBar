@@ -33,6 +33,7 @@ final class BarController: NSObject, NSApplicationDelegate {
     return formatter
   }()
   private let backend = Yabai()
+  private let configurationFile: ConfigurationFile
   private let worker = DispatchQueue(label: "local.mactilebar.yabai", qos: .userInitiated)
   private var timer: Timer?
   private var statusItem: NSStatusItem?
@@ -57,6 +58,11 @@ final class BarController: NSObject, NSApplicationDelegate {
   }()
   private var reservationRevision: UInt = 0
   private var terminating = false
+
+  init(configurationFile: ConfigurationFile) {
+    self.configurationFile = configurationFile
+    super.init()
+  }
 
   private var reservationRequest: ReservationRequest {
     ReservationRequest(
@@ -84,7 +90,23 @@ final class BarController: NSObject, NSApplicationDelegate {
     NotificationCenter.default.addObserver(
       self, selector: #selector(screenChanged),
       name: NSApplication.didChangeScreenParametersNotification, object: nil)
-    let timer = Timer(timeInterval: 0.75, repeats: true) { [weak self] _ in
+    applyConfiguration()
+  }
+
+  private func applyConfiguration() {
+    let configuration = configurationFile.current
+    barAppearance = configuration.appearance
+    dateFormatter.dateFormat = configuration.date.format
+    reservesBarHeight = configuration.behavior.reservesBarHeight
+      ?? UserDefaults.standard.bool(forKey: Self.reservationPreference)
+    reservationRevision &+= 1
+    strips.removeAll()
+    for bar in panels.values {
+      bar.applicationName = nil
+      bar.dateTitle = nil
+    }
+    timer?.invalidate()
+    let timer = Timer(timeInterval: configuration.behavior.refreshInterval, repeats: true) { [weak self] _ in
       self?.render()
       self?.refresh()
     }
@@ -92,6 +114,14 @@ final class BarController: NSObject, NSApplicationDelegate {
     RunLoop.main.add(timer, forMode: .common)
     render()
     refresh()
+  }
+
+  @objc private func reloadConfiguration() {
+    if configurationFile.reload() {
+      applyConfiguration()
+    } else {
+      updateStatus()
+    }
   }
 
   func applicationWillTerminate(_ notification: Notification) {
@@ -250,7 +280,7 @@ final class BarController: NSObject, NSApplicationDelegate {
         bar.applicationName = applicationName
       }
       if bar.dateTitle != dateTitle {
-        let capsule = statusCapsule(dateTitle, textColor: .white)
+        let capsule = statusCapsule(dateTitle, textColor: configurationFile.current.date.color)
         bar.rightWidth = capsule.frame.width
         bar.right.contentView = capsuleContainer(capsule)
         bar.dateTitle = dateTitle
@@ -327,7 +357,7 @@ final class BarController: NSObject, NSApplicationDelegate {
 
   private func updateStatus() {
     let status = connectionError != nil ? "yabai offline" : snapshot != nil ? "yabai connected" : "Connecting to yabai…"
-    let issue = connectionError ?? actionError ?? snapshot?.reservationIssue
+    let issue = configurationFile.issue ?? connectionError ?? actionError ?? snapshot?.reservationIssue
     guard
       status != statusTitle || issue != statusIssue || reservesBarHeight != statusReservationEnabled
     else { return }
@@ -348,6 +378,11 @@ final class BarController: NSObject, NSApplicationDelegate {
       menu.addItem(item)
     }
     menu.addItem(.separator())
+    let reloadItem = NSMenuItem(
+      title: "Reload Configuration", action: #selector(reloadConfiguration), keyEquivalent: "")
+    reloadItem.target = self
+    reloadItem.toolTip = configurationFile.location.url.path
+    menu.addItem(reloadItem)
     let reservationItem = NSMenuItem(
       title: "Automatically Reserve Bar Height", action: #selector(toggleReservation), keyEquivalent: "")
     reservationItem.target = self
