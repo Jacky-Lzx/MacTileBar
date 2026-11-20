@@ -18,8 +18,9 @@ final class WindowListingTests: XCTestCase {
   }
 
   func testKeepsOtherSpaceAndMinimizedWindowsWithoutAXReferences() {
-    XCTAssertTrue(window().isListed(onVisibleSpace: false))
-    XCTAssertTrue(window(minimized: true).isListed(onVisibleSpace: true))
+    XCTAssertTrue(window().isListed(onVisibleSpace: false, isOrderedIn: { _ in true }))
+    XCTAssertTrue(window().isListed(onVisibleSpace: false, isOrderedIn: { _ in nil }))
+    XCTAssertTrue(window(minimized: true).isListed(onVisibleSpace: true, isOrderedIn: { _ in false }))
   }
 
   func testKeepsWindowsWithEvidenceOfAvailability() {
@@ -34,17 +35,19 @@ final class WindowListingTests: XCTestCase {
     XCTAssertFalse(window(hasAX: true, fullscreen: true).isListed(onVisibleSpace: true))
   }
 
-  func testSnapshotUsesVisibilityOfEachWindowsSpace() {
+  func testSnapshotExcludesOrderedOutWindowAfterSwitchingSpaces() {
     let spaces = (1...2).map { index in
       Space(
         id: UInt64(index), uuid: "space-\(index)", index: index, label: "", display: 1,
-        focused: index == 1, visible: index == 1, fullscreen: false)
+        focused: index == 2, visible: index == 2, fullscreen: false)
     }
     let snapshot = Snapshot(
       displays: [], spaces: spaces,
-      windows: [window(), window(id: 91, space: 2), window(id: 92, minimized: true)],
-      reservationIssue: nil)
-    XCTAssertEqual(snapshot.listedWindows.map(\.id), [91, 92])
+      windows: [window(), window(id: 91), window(id: 92, minimized: true),
+                window(id: 93, space: 2), window(id: 94, hasAX: true)],
+      reservationIssue: nil,
+      isOrderedIn: { $0 == 91 })
+    XCTAssertEqual(snapshot.listedWindows.map(\.id), [91, 92, 94])
   }
 
   func testDecodesVisibilityAndAllowsOlderQueryDataWithoutIt() throws {

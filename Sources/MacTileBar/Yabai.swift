@@ -56,9 +56,13 @@ struct TileWindow: Decodable, Equatable {
   var name: String { title.isEmpty ? app : "\(app) — \(title)" }
   var listed: Bool { root && !hidden && !fullscreen }
 
-  func isListed(onVisibleSpace: Bool) -> Bool {
-    // Off-Space windows may acquire their AX reference only after switching Spaces.
-    listed && (hasAX || minimized || visible != false || !onVisibleSpace)
+  func isListed(
+    onVisibleSpace: Bool, isOrderedIn: (UInt32) -> Bool? = WindowOrder.isOrderedIn
+  ) -> Bool {
+    guard listed else { return false }
+    if hasAX || minimized || visible != false { return true }
+    // On another Space, a window can lack an AX reference while still being ordered in.
+    return !onVisibleSpace && isOrderedIn(id) != false
   }
 
   enum CodingKeys: String, CodingKey {
@@ -85,13 +89,23 @@ struct Snapshot {
   let spaces: [Space]
   let windows: [TileWindow]
   let reservationIssue: String?
+  let listedWindows: [TileWindow]
+
+  init(
+    displays: [Display], spaces: [Space], windows: [TileWindow], reservationIssue: String?,
+    isOrderedIn: (UInt32) -> Bool? = WindowOrder.isOrderedIn
+  ) {
+    self.displays = displays
+    self.spaces = spaces
+    self.windows = windows
+    self.reservationIssue = reservationIssue
+    let visibleSpaces = Set(spaces.filter(\.visible).map(\.index))
+    listedWindows = windows.filter {
+      $0.isListed(onVisibleSpace: visibleSpaces.contains($0.space), isOrderedIn: isOrderedIn)
+    }
+  }
 
   var desktops: [Space] { spaces.filter { !$0.fullscreen }.sorted { $0.index < $1.index } }
-
-  var listedWindows: [TileWindow] {
-    let visibleSpaces = Set(spaces.filter(\.visible).map(\.index))
-    return windows.filter { $0.isListed(onVisibleSpace: visibleSpaces.contains($0.space)) }
-  }
 
   func applicationFocus(pid: Int32?, name: String) -> ApplicationFocus? {
     guard let space = spaces.first(where: \.focused) else { return nil }
