@@ -19,6 +19,20 @@ bash scripts/install-app.sh
 
 The install script uses `dist/MacTileBar.app`, asks any running MacTileBar instance to quit normally, replaces `/Applications/MacTileBar.app`, and launches the new version. After changing the code, run the build script before running the install script.
 
+## Build with Nix
+
+On Apple Silicon, the flake builds MacTileBar with Swift 6.2 and the macOS 26
+SDK. It uses the same bundling and signing script as the Xcode build and
+validates the example TOML configuration with the resulting app.
+
+```sh
+nix --extra-experimental-features 'nix-command flakes' build
+open result/Applications/MacTileBar.app
+```
+
+The flake also exports `packages.aarch64-darwin.mactilebar` for use in a
+nix-darwin configuration.
+
 ## Configuration
 
 MacTileBar reads `~/.config/mactilebar/config.toml` by default. An absolute `XDG_CONFIG_HOME` changes the default to `$XDG_CONFIG_HOME/mactilebar/config.toml`. Start with [config.example.toml](config.example.toml), which lists all supported settings and their defaults. Missing settings use the built-in defaults.
