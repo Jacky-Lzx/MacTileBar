@@ -123,16 +123,15 @@ final class SpaceCapsule: NSView {
     label.frame.origin = NSPoint(
       x: barAppearance.spaceLeadingPadding, y: (barAppearance.capsuleHeight - label.frame.height) / 2)
 
-    var x = label.frame.maxX + barAppearance.spaceLabelIconGap
+    let chipsStartX = label.frame.maxX + barAppearance.spaceLabelIconGap
+    var x = chipsStartX
     for chip in chips {
       chip.frame.origin = NSPoint(x: x, y: (barAppearance.capsuleHeight - chip.frame.height) / 2)
       x = chip.frame.maxX + barAppearance.windowButtonGap
     }
-    let contentWidth = chips.last?.frame.maxX ?? label.frame.maxX
-    // Empty Spaces keep symmetric padding around their label.
-    let trailingPadding = chips.isEmpty ? barAppearance.spaceLeadingPadding : barAppearance.spaceTrailingPadding
+    let contentWidth = chips.last?.frame.maxX ?? (chipsStartX + barAppearance.windowButtonSize)
     let frame = NSRect(
-      x: 0, y: 0, width: contentWidth + trailingPadding, height: barAppearance.capsuleHeight)
+      x: 0, y: 0, width: contentWidth + barAppearance.spaceTrailingPadding, height: barAppearance.capsuleHeight)
     super.init(frame: frame)
     let content = NSView(frame: frame)
     content.addSubview(label)
@@ -155,7 +154,7 @@ final class SpaceCapsule: NSView {
     setAccessibilityLabel(accessibilityLabel)
     let spaceButton = SpaceButton(
       frame: NSRect(
-        x: 0, y: 0, width: label.frame.maxX + barAppearance.spaceLabelIconGap, height: barAppearance.capsuleHeight))
+        x: 0, y: 0, width: chipsStartX, height: barAppearance.capsuleHeight))
     spaceButton.capsule = self
     spaceButton.toolTip = toolTip
     spaceButton.setAccessibilityLabel("Switch to Space \(space.title)")
